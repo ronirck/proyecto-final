@@ -254,3 +254,98 @@ No hubo que invocar a `depurador-web`: no falló nada.
 ### Pendiente para el despliegue público (regla 6 del proyecto)
 `git init` + repo remoto + importar en Vercel con la variable de entorno `DATABASE_URL` (mismo valor que
 `.env.local`). El `.gitignore` ya protege `.env.local` / `.env*.local` / `.next/` / `node_modules/`.
+
+---
+
+## 2026-08-30 — Despliegue público en Vercel (regla 6 cumplida)
+
+### Prompt del usuario
+> El repo ya está en GitHub. Prepara el despliegue en Vercel y guíame para conectarlo.
+> `DATABASE_URL` va como Environment Variable en el panel de Vercel con el mismo valor de
+> `.env.local`. Si el build falla, invoca a `depurador-web` para la causa raíz antes de corregir.
+
+### Preparación (orquestador)
+- Repo verificado: `github.com/ronirck/proyecto-final`, rama `master`, árbol limpio.
+- `git check-ignore` confirma que `.env.local` y `db/.env.local` NO están rastreados; en el commit solo van `.env.example` y `db/.env.local.example` (plantillas vacías).
+- Simulación del build de Vercel: `npm ci` + `next build` **con `.env.local` retirado** → `✓ compiled`, tipos OK, **exit 0**. El build no depende de `DATABASE_URL` porque `app/page.tsx` es `force-dynamic` (la variable solo se usa por request). No hizo falta `depurador-web`.
+- Guía entregada al usuario: import en vercel.com/new, preset Next.js autodetectado, `DATABASE_URL` en Environment Variables (Production/Preview/Development) con el valor de `.env.local`.
+
+### URL de producción
+**https://proyecto-final-neon-five.vercel.app/**
+
+### Verificación contra producción
+| Check | Resultado |
+|---|---|
+| Respuesta | `HTTP 200`, `Server: Vercel`, `Cache-Control: private, no-cache` (dinámica), `X-Matched-Path: /` |
+| Conexión a Neon | OK — 10 tarjetas renderizadas desde `registros_clinicos`; la env var del panel funciona |
+| Contador | «Mostrando 10 de 10 registros» |
+| Nulos | Título «Sin nombre» (HC-1010), chips «Sin especialidad» / «Sin sede» presentes; **0** `undefined` / `>null<` / `NaN` / `[object Object]` / coma colgante en el DOM |
+| Métricas | `10` · `42.8 años` · `127.5 mmHg` · `75%` · `6` visitas (ventana móvil, idénticas a local; respaldos excluidos) |
+| Assets | 6 chunks JS + 1 CSS → todos `200`; RSC payload trae los 10 registros normalizados → hidratación y filtros disponibles |
+| Filtros destacados | `especialidad` + `sede` con badge «Filtro» (×2) + control segmentado de `seguro` |
+
+Pendiente de comprobación visual del usuario en el navegador real: consola de DevTools,
+interacción de filtros/estado vacío, y layout en pantalla estrecha (el `@media (max-width:620px)`
+va en el CSS servido; la lógica de filtros/estado-vacío se validó con Node contra Neon en la iteración anterior).
+
+---
+
+## 2026-08-30 — Prueba de datos malformados + diagnóstico de `depurador-web`
+
+### Prompt del usuario
+> Inserta en Neon vía MCP un registro con `ultima_visita` en formato inválido (`"31/02/2026"`)
+> y `presion_sistolica` como texto no numérico. Luego invoca a `depurador-web` para que
+> diagnostique la causa raíz y aplique la corrección. Registra el reporte completo en
+> `BITACORA.md` y borra la fila de prueba al terminar.
+
+### Intento de INSERT vía MCP (orquestador)
+Dos intentos con `run_sql`, ambos rechazados atómicamente por Postgres (no se creó ninguna fila):
+
+| Valor hostil | Columna destino | Error de Neon |
+|---|---|---|
+| `ultima_visita = '31/02/2026'` | `DATE` | `NeonDbError: date/time field value out of range: "31/02/2026"` |
+| `presion_sistolica = 'no-medida'` | `INTEGER` | `NeonDbError: invalid input syntax for type integer: "no-medida"` |
+
+El esquema tipado (`db/schema.sql`) es la primera barrera y funcionó. La pregunta para
+`depurador-web`: ¿la capa de ingesta `db/load.mjs` neutraliza esos valores **antes** de Postgres?
+
+### Delegación → `depurador-web`
+Encargo: revisar la ruta de escritura (`db/load.mjs`: `aFechaONull`, `aEnteroONull`,
+`normalizarRegistro`), comparar con la de lectura (`lib/normalizar.ts`, que NO debía tocar),
+explicar la causa raíz antes de corregir (regla 5), arreglar solo la ruta de escritura y verificar.
+
+### Causa raíz (reportada por `depurador-web`)
+- **`aEnteroONull` ya era correcto:** `"no-medida"` → `Number.parseInt` = `NaN` → `null` + aviso `presion_sistolica no numerico ("no-medida") -> NULL`. No deja pasar basura.
+- **`aFechaONull` (versión anterior) NO validaba el calendario.** Las tres ramas podían entregar un ISO imposible:
+  - `if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;` → devolvía cualquier cadena con forma `YYYY-MM-DD` sin comprobar rango (`"2026-13-01"` salía intacto).
+  - Rama `dd/mm/yyyy`: solo hacía `padStart` de ceros → `"31/02/2026"` → `"2026-02-31"`. Nunca comprobaba que el día existiera.
+  - Fallback `Date.parse`: dependiente del motor, hace *roll-over* silencioso (Feb 31 → Mar 3) en vez de fallar.
+- **Consecuencia observable:** si `"31/02/2026"` apareciera en `data/seed.json`, `normalizarRegistro` lo convertiría en `"2026-02-31"`, ese string se pasaría como parámetro a la columna `ultima_visita DATE` en `UPSERT_SQL`, Postgres lanzaría `date/time field value out of range`, y como toda la carga corre en un único `BEGIN … COMMIT` con `ROLLBACK` en el `catch`, **un solo registro con fecha imposible aborta la carga completa de la tabla**. `lib/normalizar.ts` (lectura) sí valida con round-trip por `Date.UTC` (`armarISO`); la ruta de escritura no lo tenía. `data/seed.json` actual no contiene fechas hostiles → el fallo era **latente**, no activo.
+
+### Corrección aplicada (`db/load.mjs`, archivo único; `lib/normalizar.ts` intacto)
+- Nuevo helper `armarFechaISO(y, mo, d)`: valida rango de mes/día + round-trip por `new Date(Date.UTC(...))` comprobando que `getUTCFullYear/Month/Date` coinciden; devuelve `null` si el día civil no existe.
+- `aFechaONull` reescrita: las tres ramas (ISO, `dd/mm/yyyy`|`dd-mm-yyyy`, fallback `Date.parse`) pasan por `armarFechaISO`. Si el resultado es `null` → aviso existente `fecha no interpretable ("…") -> NULL` y devuelve `null`; nunca un ISO inválido. Firma, estilo e idempotencia conservados; fechas válidas dan el mismo resultado que antes.
+- `aEnteroONull` / `aBoolONull` / `separarSede` / `separarNombre`: revisadas, no tienen el mismo patrón.
+
+### Verificación (ejecutada por el orquestador tras el parche)
+```
+node --check db/load.mjs        -> sintaxis OK
+seed real (10 registros)        -> 10 normalizados, 0 avisos, fechas idénticas a antes
+31/02/2026  -> null  + aviso "fecha no interpretable"
+2026-13-01  -> null  + aviso
+31-02-2026  -> null  + aviso
+2026-02-29  -> null  + aviso   (2026 no bisiesto)
+2028-02-29  -> 2028-02-29      (2028 bisiesto, válida, sin aviso)
+14/02/2026  -> 2026-02-14      (dd/mm válida, sin aviso)
+2026-08-21  -> 2026-08-21      (ISO válida, sin aviso)
+```
+`"31/02/2026"`, `"2026-13-01"` y `"31-02-2026"` ya no pueden llegar como ISO a la columna `DATE`: se neutralizan a `NULL` con aviso en la ingesta, así un registro con fecha imposible ya no aborta el `COMMIT` de la carga.
+
+### Fila de prueba
+No se creó ninguna (ambos INSERT rechazados atómicamente). Comprobación post-diagnóstico:
+`SELECT count(*) ... FILTER (WHERE id LIKE 'HZ-%')` → `total 10, pruebas 0`. Nada que borrar.
+
+### Fallos latentes del mismo tipo señalados por `depurador-web` (no corregidos — decisión de esquema/`guardian-datos`)
+1. `aEnteroONull` no acota rangos clínicos: `presion_sistolica: "-5"` o `"99999"` pasan como enteros válidos.
+2. Fallback `Date.parse` con formatos month-first exóticos con hora/zona: ahora neutralizados por `armarFechaISO`, pero conviene decidir si se restringe el fallback a formatos explícitos.
+3. `separarSede` con `sede: 123` (número) → `"123"` como ciudad sin aviso; hoy no ocurre en el seed.

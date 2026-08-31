@@ -69,21 +69,46 @@ function aBoolONull(v, campo, id, avisos) {
   return null;
 }
 
-// "2026-08-21" -> "2026-08-21" ; formatos mixtos tolerados ; null/"" -> null ; basura -> null (+ aviso)
+// (y, mo, d) civiles -> "YYYY-MM-DD" si es un dia real del calendario ; null si es imposible.
+// Round-trip por Date.UTC: rechaza "2026-02-31", "2026-13-01", etc. antes de que
+// lleguen a la columna DATE y hagan reventar la transaccion de carga.
+function armarFechaISO(y, mo, d) {
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return null;
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) {
+    return null;
+  }
+  const p2 = (n) => String(n).padStart(2, '0');
+  return `${y}-${p2(mo)}-${p2(d)}`;
+}
+
+// "2026-08-21" -> "2026-08-21" ; "14/02/2026" -> "2026-02-14" ; formatos mixtos tolerados ;
+// null/"" -> null ; fecha imposible o formato no reconocido -> null (+ aviso).
 function aFechaONull(v, campo, id, avisos) {
   if (esAusente(v)) return null;
   const s = String(v).trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  // dd/mm/yyyy o dd-mm-yyyy
-  const m = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
-  if (m) {
-    const [, d, mo, y] = m;
-    return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;
+
+  let iso = null;
+  let m;
+  if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))) {
+    iso = armarFechaISO(Number(m[1]), Number(m[2]), Number(m[3]));
+  } else if ((m = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/))) {
+    // dd/mm/yyyy o dd-mm-yyyy
+    iso = armarFechaISO(Number(m[3]), Number(m[2]), Number(m[1]));
+  } else {
+    const t = Date.parse(s);
+    if (!Number.isNaN(t)) {
+      const dt = new Date(t);
+      iso = armarFechaISO(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
+    }
   }
-  const t = Date.parse(s);
-  if (!Number.isNaN(t)) return new Date(t).toISOString().slice(0, 10);
-  avisos.push(`${id}: ${campo} fecha no interpretable ("${v}") -> NULL`);
-  return null;
+
+  if (iso === null) {
+    avisos.push(`${id}: ${campo} fecha no interpretable ("${v}") -> NULL`);
+    return null;
+  }
+  return iso;
 }
 
 // null/"" -> null ; texto -> texto recortado
