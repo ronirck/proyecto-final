@@ -1,0 +1,14 @@
+# Dependencias
+node_modules/
+
+# Credenciales locales: NUNCA subir cadenas de conexion
+.env.local
+.env*.local
+
+# Build / cache habituales
+.vercel/
+dist/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts

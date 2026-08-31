@@ -1,0 +1,118 @@
+{
+  "meta": {
+    "descripcion": "Semilla del proyecto. Contiene nulos, campos agrupados y tipos mixtos de forma deliberada, para que la capa de normalizacion tenga algo real que resolver.",
+    "version": "1.0"
+  },
+  "registros": [
+    {
+      "id": "HC-1001",
+      "nombre_completo": "Ana Maria Perez Soto",
+      "edad": 34,
+      "especialidad": "Cardiologia",
+      "sede": "Bogota, CO",
+      "ultima_visita": "2026-08-21",
+      "presion_sistolica": 128,
+      "seguro_activo": "si",
+      "notas": "Control anual sin hallazgos relevantes."
+    },
+    {
+      "id": "HC-1002",
+      "nombre_completo": "Luis Fernando Gomez",
+      "edad": "52",
+      "especialidad": "Neurologia",
+      "sede": "Medellin, CO",
+      "ultima_visita": "2026-08-14",
+      "presion_sistolica": null,
+      "seguro_activo": "no",
+      "notas": null
+    },
+    {
+      "id": "HC-1003",
+      "nombre_completo": "Carla Ruiz",
+      "edad": 29,
+      "especialidad": "Cardiologia",
+      "sede": "Cali, CO",
+      "ultima_visita": "2026-08-28",
+      "presion_sistolica": 117,
+      "seguro_activo": "si",
+      "notas": ""
+    },
+    {
+      "id": "HC-1004",
+      "nombre_completo": "Jorge Alberto Nunez Vela",
+      "edad": null,
+      "especialidad": "Pediatria",
+      "sede": null,
+      "ultima_visita": "2026-07-30",
+      "presion_sistolica": 141,
+      "seguro_activo": "si",
+      "notas": "Requiere seguimiento en tres meses."
+    },
+    {
+      "id": "HC-1005",
+      "nombre_completo": "Marta Elena Diaz Pena",
+      "edad": 61,
+      "especialidad": "Neurologia",
+      "sede": "Bogota, CO",
+      "ultima_visita": "2026-08-05",
+      "presion_sistolica": 135,
+      "seguro_activo": "SI",
+      "notas": "Ajuste de tratamiento."
+    },
+    {
+      "id": "HC-1006",
+      "nombre_completo": "Pedro Castillo",
+      "edad": 45,
+      "especialidad": "Dermatologia",
+      "sede": "Barranquilla, CO",
+      "ultima_visita": null,
+      "presion_sistolica": 122,
+      "seguro_activo": null,
+      "notas": "Primera consulta."
+    },
+    {
+      "id": "HC-1007",
+      "nombre_completo": "Sofia Herrera Lopez",
+      "edad": 38,
+      "especialidad": "Pediatria",
+      "sede": "Medellin, CO",
+      "ultima_visita": "2026-08-26",
+      "presion_sistolica": 119,
+      "seguro_activo": "si",
+      "notas": "Sin novedades."
+    },
+    {
+      "id": "HC-1008",
+      "nombre_completo": "Ricardo",
+      "edad": 57,
+      "especialidad": "Cardiologia",
+      "sede": "Cali, CO",
+      "ultima_visita": "2026-06-18",
+      "presion_sistolica": "148",
+      "seguro_activo": "no",
+      "notas": "Paciente con apellido no registrado en el sistema origen."
+    },
+    {
+      "id": "HC-1009",
+      "nombre_completo": "Valentina Ortega Rios",
+      "edad": 26,
+      "especialidad": "Dermatologia",
+      "sede": "Bogota, CO",
+      "ultima_visita": "2026-08-29",
+      "presion_sistolica": 110,
+      "seguro_activo": "si",
+      "notas": null
+    },
+    {
+      "id": "HC-1010",
+      "nombre_completo": null,
+      "edad": null,
+      "especialidad": null,
+      "sede": null,
+      "ultima_visita": null,
+      "presion_sistolica": null,
+      "seguro_activo": null,
+      "notas": "Registro incompleto importado desde el sistema anterior."
+    }
+  ]
+}
